@@ -1,0 +1,448 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Flock Energy API",
+    "version": "1.0.0",
+    "license": { "name": "MIT", "url": "https://opensource.org/licenses/MIT" },
+    "description": "A clean REST API over the Urja smart-meter portal. It handles the portal login and session internally and exposes meters, their energy readings, their location, and distribution transformers as JSON.\n\nEvery response has the same envelope: successful responses carry `success: true` and a `data` field; failed responses carry `success: false` and a `message`."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3005",
+      "description": "Local development server"
+    }
+  ],
+  "security": [],
+  "tags": [
+    { "name": "Meters", "description": "Search and look up smart meters" },
+    { "name": "Energy", "description": "Readings and location for a single meter" },
+    { "name": "Transformers", "description": "Distribution transformers (DTs)" }
+  ],
+  "paths": {
+    "/api/meters": {
+      "get": {
+        "tags": ["Meters"],
+        "operationId": "searchMeters",
+        "summary": "Search meters",
+        "description": "Returns one page of meters matching the search text. With no `q`, returns all meters, paginated. A page past the end returns an empty `data` array.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Search text, for example a full or partial meter ID. Must be given at most once.",
+            "schema": { "type": "string", "default": "" },
+            "example": "J100012"
+          },
+          { "$ref": "#/components/parameters/Page" }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of matching meters",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MeterListResponse" },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "meterId": "J100012",
+                      "serialNo": "HP85710",
+                      "make": "Allied",
+                      "phaseType": "single",
+                      "installStatus": "Installed",
+                      "dtCode": "DT-013"
+                    }
+                  ],
+                  "total": 1,
+                  "page": 1,
+                  "pageSize": 20
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "invalidPage": {
+                    "value": {
+                      "success": false,
+                      "message": "page must be a positive integer"
+                    }
+                  },
+                  "invalidQuery": {
+                    "value": {
+                      "success": false,
+                      "message": "q must be a string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/meters/{meterId}": {
+      "get": {
+        "tags": ["Meters"],
+        "operationId": "getMeterById",
+        "summary": "Get a meter by ID",
+        "description": "Returns a single meter. The ID must match exactly and is case-sensitive.",
+        "parameters": [{ "$ref": "#/components/parameters/MeterId" }],
+        "responses": {
+          "200": {
+            "description": "The meter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MeterResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "meterId": "J100012",
+                    "serialNo": "HP85710",
+                    "make": "Allied",
+                    "phaseType": "single",
+                    "installStatus": "Installed",
+                    "dtCode": "DT-013"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/MalformedRequest" },
+          "404": { "$ref": "#/components/responses/MeterNotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/meters/{meterId}/energy": {
+      "get": {
+        "tags": ["Energy"],
+        "operationId": "getMeterEnergy",
+        "summary": "Get energy readings for a meter",
+        "description": "Returns the meter's half-hourly readings, oldest first. Numeric values are returned as strings, exactly as the portal provides them.",
+        "parameters": [{ "$ref": "#/components/parameters/MeterId" }],
+        "responses": {
+          "200": {
+            "description": "The meter's readings",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EnergyResponse" },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "timestamp": "23/06/2026 23:30",
+                      "kwh": "7513.51",
+                      "kvah": "8114.59",
+                      "voltR": "239"
+                    },
+                    {
+                      "timestamp": "24/06/2026 00:00",
+                      "kwh": "7513.97",
+                      "kvah": "8115.09",
+                      "voltR": "228"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/MalformedRequest" },
+          "404": { "$ref": "#/components/responses/MeterNotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/meters/{meterId}/geo": {
+      "get": {
+        "tags": ["Energy"],
+        "operationId": "getMeterGeo",
+        "summary": "Get the location of a meter",
+        "description": "Returns the meter's coordinates as numbers.",
+        "parameters": [{ "$ref": "#/components/parameters/MeterId" }],
+        "responses": {
+          "200": {
+            "description": "The meter's coordinates",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GeoResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "latitude": 26.927220696029348,
+                    "longitude": 75.80744330035309
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/MalformedRequest" },
+          "404": { "$ref": "#/components/responses/MeterNotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/transformers": {
+      "get": {
+        "tags": ["Transformers"],
+        "operationId": "getTransformers",
+        "summary": "List transformers",
+        "description": "Returns one page of distribution transformers. A page past the end returns an empty `data` array.",
+        "parameters": [{ "$ref": "#/components/parameters/Page" }],
+        "responses": {
+          "200": {
+            "description": "One page of transformers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransformerListResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "code": "DT-001",
+                      "name": "Malviya Nagar DT 1",
+                      "feederCode": "F-001",
+                      "capacityKva": 100
+                    },
+                    {
+                      "code": "DT-002",
+                      "name": "Mansarovar DT 2",
+                      "feederCode": "F-002",
+                      "capacityKva": 63
+                    }
+                  ],
+                  "total": 40,
+                  "page": 1,
+                  "pageSize": 20
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "message": "page must be a positive integer"
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "MeterId": {
+        "name": "meterId",
+        "in": "path",
+        "required": true,
+        "description": "The meter's ID. Case-sensitive.",
+        "schema": { "type": "string" },
+        "example": "J100012"
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "1-based page number.",
+        "schema": { "type": "integer", "minimum": 1, "default": 1 }
+      }
+    },
+    "responses": {
+      "MalformedRequest": {
+        "description": "The request could not be parsed, for example an invalid percent-encoding in the URL",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "success": false, "message": "Bad request" }
+          }
+        }
+      },
+      "MeterNotFound": {
+        "description": "No meter exists with this ID",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "success": false, "message": "Meter not found" }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Unexpected server error, including the Urja portal being unreachable or rejecting the request",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "success": false, "message": "Internal server error" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string" }
+        }
+      },
+      "Meter": {
+        "type": "object",
+        "required": [
+          "meterId",
+          "serialNo",
+          "make",
+          "phaseType",
+          "installStatus",
+          "dtCode"
+        ],
+        "properties": {
+          "meterId": { "type": "string", "example": "J100012" },
+          "serialNo": { "type": "string", "example": "HP85710" },
+          "make": {
+            "type": "string",
+            "description": "Manufacturer",
+            "example": "Allied"
+          },
+          "phaseType": {
+            "type": "string",
+            "description": "Observed values: `single`, `three`",
+            "example": "single"
+          },
+          "installStatus": {
+            "type": "string",
+            "description": "Observed values: `Installed`, `Faulty`, `Decommissioned`",
+            "example": "Installed"
+          },
+          "dtCode": {
+            "type": "string",
+            "description": "Code of the transformer this meter is connected to",
+            "example": "DT-013"
+          }
+        }
+      },
+      "MeterListResponse": {
+        "type": "object",
+        "required": ["success", "data", "total", "page", "pageSize"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Meter" }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of matching meters across all pages"
+          },
+          "page": { "type": "integer" },
+          "pageSize": { "type": "integer", "example": 20 }
+        }
+      },
+      "MeterResponse": {
+        "type": "object",
+        "required": ["success", "data"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/Meter" }
+        }
+      },
+      "EnergyReading": {
+        "type": "object",
+        "required": ["timestamp", "kwh", "kvah", "voltR"],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "description": "Reading time in `DD/MM/YYYY HH:mm` format",
+            "example": "23/06/2026 23:30"
+          },
+          "kwh": {
+            "type": "string",
+            "description": "Cumulative active energy (kWh), as a numeric string",
+            "example": "7513.51"
+          },
+          "kvah": {
+            "type": "string",
+            "description": "Cumulative apparent energy (kVAh), as a numeric string",
+            "example": "8114.59"
+          },
+          "voltR": {
+            "type": "string",
+            "description": "R-phase voltage (V), as a numeric string",
+            "example": "239"
+          }
+        }
+      },
+      "EnergyResponse": {
+        "type": "object",
+        "required": ["success", "data"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/EnergyReading" }
+          }
+        }
+      },
+      "MeterGeo": {
+        "type": "object",
+        "required": ["latitude", "longitude"],
+        "properties": {
+          "latitude": { "type": "number", "example": 26.927220696029348 },
+          "longitude": { "type": "number", "example": 75.80744330035309 }
+        }
+      },
+      "GeoResponse": {
+        "type": "object",
+        "required": ["success", "data"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/MeterGeo" }
+        }
+      },
+      "Transformer": {
+        "type": "object",
+        "required": ["code", "name", "feederCode", "capacityKva"],
+        "properties": {
+          "code": { "type": "string", "example": "DT-001" },
+          "name": { "type": "string", "example": "Malviya Nagar DT 1" },
+          "feederCode": { "type": "string", "example": "F-001" },
+          "capacityKva": {
+            "type": "number",
+            "description": "Rated capacity in kVA",
+            "example": 100
+          }
+        }
+      },
+      "TransformerListResponse": {
+        "type": "object",
+        "required": ["success", "data", "total", "page", "pageSize"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Transformer" }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of transformers across all pages"
+          },
+          "page": { "type": "integer" },
+          "pageSize": { "type": "integer", "example": 20 }
+        }
+      }
+    }
+  }
+}

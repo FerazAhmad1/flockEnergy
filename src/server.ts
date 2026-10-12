@@ -1,3 +1,4 @@
+import { config } from "./config.js";
 import app from "./app.js";
 
 const port = 3005;
