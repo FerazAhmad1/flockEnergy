@@ -15,7 +15,6 @@ The login response sets a session cookie. Subsequent authenticated requests use 
 The website calls these APIs to retrieve meter data:
 
 - `GET /portal/meters/search?q=&page=1`
-- `GET /portal/export?page=1`
 
 The meter search API returns paginated meter records. The request includes the following relevant headers:
 
